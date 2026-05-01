@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (Firebase Auth UID)
+    // Fields:
+    //   - email: string (required) - User's email address
+    //   - credits: number (required) - Current credit balance
+    //   - gamePassPlan: string (required, enum: ['none', 'basic', 'premium', 'ultimate'])
+    //   - isMinecraftOwned: bool (required)
+    //   - achievements: list (optional) - List of achievement objects
+    //   - lastSeen: timestamp (optional) - Last time the user was active
+    //   - createdAt: timestamp (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidPlan(plan) {
+      return plan in ['none', 'basic', 'premium', 'ultimate'];
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['email', 'credits', 'gamePassPlan', 'isMinecraftOwned']) &&
+             hasOnlyAllowedFields(['email', 'credits', 'gamePassPlan', 'isMinecraftOwned', 'createdAt', 'achievements', 'lastSeen']) &&
+             isValidEmail(data.email) &&
+             data.credits is number && data.credits >= 0 &&
+             isValidPlan(data.gamePassPlan) &&
+             data.isMinecraftOwned is bool &&
+             (!('achievements' in data) || data.achievements is list) &&
+             (!('lastSeen' in data) || data.lastSeen is timestamp);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Users can read their own profile, and limited info of others for donations
+      allow get: if isAuthenticated();
+      allow list: if isAuthenticated();
+      
+      // On create, ensure the user is the owner and the data is valid
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      
+      // On update:
+      // 1. Owner can update everything except email
+      // 2. Others can ONLY update credits (for donations)
+      allow update: if (isOwner(userId) && 
+                     isValidUser(request.resource.data) &&
+                     request.resource.data.email == resource.data.email) ||
+                    (isAuthenticated() && 
+                     isValidUser(request.resource.data) &&
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['credits']));
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

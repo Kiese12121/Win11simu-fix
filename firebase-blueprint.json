@@ -1,0 +1,23 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user-specific data including credits and subscription status.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "credits": { "type": "number", "description": "The user's current credit balance." },
+        "gamePassPlan": { "type": "string", "enum": ["none", "basic", "premium", "ultimate"] },
+        "isMinecraftOwned": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "credits", "gamePassPlan", "isMinecraftOwned"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Individual user documents keyed by Firebase Auth UID."
+    }
+  }
+}

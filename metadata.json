@@ -1,0 +1,5 @@
+{
+  "name": "Windows 11 Simulator",
+  "description": "A comprehensive Windows 11 simulation featuring a centered taskbar, Start menu, Microsoft Store, and classic Windows 7 apps.",
+  "requestFramePermissions": ["camera", "microphone"]
+}
